@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Cup 2026 Sweepstakes</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; padding: 2rem; }
+h1 { text-align: center; font-size: 2rem; margin-bottom: 0.5rem; }
+.subtitle { text-align: center; color: #888; margin-bottom: 2rem; }
+.container { max-width: 900px; margin: 0 auto; }
+section { background: #16213e; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+input, select { width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid #333; background: #0f3460; color: #eee; font-size: 1rem; margin-bottom: 1rem; }
+input::placeholder { color: #666; }
+.info { color: #888; font-size: 0.85rem; margin-bottom: 1rem; }
+.btn { background: #e94560; color: #fff; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600; }
+.btn:hover { background: #c73e54; }
+.btn-secondary { background: #0f3460; border: 1px solid #333; }
+.btn-secondary:hover { background: #1a4a7a; }
+.btn-danger { background: #6b2030; }
+.btn-danger:hover { background: #8b2040; }
+.btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.error { color: #e94560; margin-bottom: 1rem; font-weight: 500; }
+.player-card { background: #0f3460; border-radius: 10px; padding: 1.25rem; margin-bottom: 0.75rem; }
+.player-card h3 { margin-bottom: 0.5rem; font-size: 1.1rem; display: flex; justify-content: space-between; }
+.team-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.team-tag { background: #16213e; padding: 0.35rem 0.65rem; border-radius: 5px; font-size: 0.8rem; }
+.team-tag.pot-1 { border-left: 3px solid #ffd700; }
+.team-tag.pot-2 { border-left: 3px solid #c0c0c0; }
+.team-tag.pot-3 { border-left: 3px solid #cd7f32; }
+.team-tag.pot-4 { border-left: 3px solid #4ecdc4; }
+.team-tag.pot-5 { border-left: 3px solid #a78bfa; }
+.team-tag.pot-6 { border-left: 3px solid #666; }
+.pot-group { margin-bottom: 1rem; }
+.pot-group h4 { color: #aaa; margin-bottom: 0.4rem; font-size: 0.9rem; }
+.prize-item { padding: 0.5rem 0; border-bottom: 1px solid #222; display: flex; gap: 0.75rem; align-items: center; }
+.prize-item:last-child { border-bottom: none; }
+.pts { background: #e94560; color: #fff; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.leaderboard { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+.leaderboard th, .leaderboard td { padding: 0.6rem 1rem; text-align: left; border-bottom: 1px solid #222; }
+.leaderboard th { color: #aaa; font-size: 0.85rem; }
+.leaderboard tr:first-child td { color: #ffd700; font-weight: 700; }
+.prize-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid #222; flex-wrap: wrap; }
+.prize-row:last-child { border-bottom: none; }
+.prize-row select { width: auto; margin-bottom: 0; padding: 0.4rem; font-size: 0.85rem; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>⚽ World Cup 2026 Sweepstakes</h1>
+  <p class="subtitle">Fair draw generator with seeded pots</p>
+
+  <!-- Profile Manager -->
+  <section id="profileSection">
+    <h2>💾 Profiles</h2>
+    <div class="btn-row" style="margin-top:1rem">
+      <select id="profileSelect" style="width:auto;flex:1;margin-bottom:0"><option value="">— Select saved profile —</option></select>
+      <button class="btn btn-secondary" onclick="loadProfile()">Load</button>
+      <button class="btn btn-danger" onclick="deleteProfile()">Delete</button>
+    </div>
+    <div class="info">Or create a new draw below</div>
+  </section>
+
+  <!-- Setup -->
+  <section id="setupSection">
+    <h2>🎲 New Draw</h2>
+    <label for="profileName">Profile Name</label>
+    <input type="text" id="profileName" placeholder="e.g. Office Sweepstakes 2026">
+    <label for="players">Player Names (comma-separated)</label>
+    <input type="text" id="players" placeholder="Alice, Bob, Charlie, Dave, Emma, Frank, Grace, Harry">
+    <label for="buyIn">Buy-in per person (£)</label>
+    <input type="number" id="buyIn" placeholder="10" min="0" step="0.01">
+    <div class="info">Supports 2–12 players. Fair distribution from 4 seeded pots. Pot = buy-in × number of players.</div>
+    <div class="error" id="error"></div>
+    <button class="btn" onclick="runDraw()">🎲 Draw & Save</button>
+  </section>
+
+  <!-- Active Profile -->
+  <section id="activeProfile" class="hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h2 id="activeTitle">📋 Profile</h2>
+    </div>
+    <h3 style="margin-bottom:0.5rem">🏆 Leaderboard</h3>
+    <table class="leaderboard" id="leaderboard"></table>
+    <h3 style="margin:1.5rem 0 0.5rem">🎯 Prize Tracker</h3>
+    <div class="info">Assign winning teams as the tournament progresses.</div>
+    <div id="prizeTracker"></div>
+    <h3 style="margin:1.5rem 0 0.5rem">📋 Team Allocations</h3>
+    <div id="drawResults"></div>
+    <div class="btn-row" style="margin-top:1.5rem">
+      <button class="btn btn-secondary" onclick="closeProfile()">← Back</button>
+    </div>
+  </section>
+
+  <!-- Pots -->
+  <section><h2>📋 Seeded Pots</h2><div id="potsDisplay"></div></section>
+  <!-- Prizes -->
+  <section><h2>🏅 Prize Categories</h2><div id="prizesDisplay"></div></section>
+</div>
+
+<script>
+const API = "";
+let currentProfile = null;
+let currentName = "";
+let allTeams = [];
+let prizes = [];
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, { headers: {"Content-Type": "application/json"}, ...opts });
+  return res.json();
+}
+
+async function init() {
+  const [pots, prizesData] = await Promise.all([api("/api/pots"), api("/api/prizes")]);
+  prizes = prizesData;
+  allTeams = Object.values(pots).flat();
+
+  // Render pots
+  let html = "";
+  Object.entries(pots).forEach(([name, teams]) => {
+    html += `<div class="pot-group"><h4>${name}</h4><div class="team-list">`;
+    teams.forEach(t => html += `<span class="team-tag">${t}</span>`);
+    html += "</div></div>";
+  });
+  document.getElementById("potsDisplay").innerHTML = html;
+
+  // Render prizes
+  html = "";
+  prizes.forEach(p => { html += `<div class="prize-item"><span>${p.name}</span><span class="pts">${p.pct}%</span><span style="color:#888;font-size:0.85rem">${p.description}</span></div>`; });
+  html += `<p style="color:#aaa;margin-top:1rem;font-weight:600">${prizes.length} categories | Total: 100% of pot</p>`;
+  document.getElementById("prizesDisplay").innerHTML = html;
+
+  refreshProfileList();
+}
+
+async function refreshProfileList() {
+  const profiles = await api("/api/profiles");
+  const sel = document.getElementById("profileSelect");
+  sel.innerHTML = '<option value="">— Select saved profile —</option>';
+  Object.entries(profiles).forEach(([name, info]) => {
+    sel.innerHTML += `<option value="${name}">${name} (${info.players.length} players)</option>`;
+  });
+}
+
+async function runDraw() {
+  const errEl = document.getElementById("error");
+  errEl.textContent = "";
+  const name = document.getElementById("profileName").value.trim();
+  const players = document.getElementById("players").value.split(",").map(s => s.trim()).filter(Boolean);
+  const buyIn = parseFloat(document.getElementById("buyIn").value) || 0;
+
+  const data = await api("/api/draw", { method: "POST", body: JSON.stringify({ name, players, buyIn }) });
+  if (data.error) { errEl.textContent = data.error; return; }
+
+  await refreshProfileList();
+  openProfile(name, data);
+}
+
+async function loadProfile() {
+  const name = document.getElementById("profileSelect").value;
+  if (!name) return;
+  const data = await api(`/api/profiles/${encodeURIComponent(name)}`);
+  if (data.error) return;
+  openProfile(name, data);
+}
+
+async function deleteProfile() {
+  const name = document.getElementById("profileSelect").value;
+  if (!name || !confirm(`Delete "${name}"?`)) return;
+  await api(`/api/profiles/${encodeURIComponent(name)}`, { method: "DELETE" });
+  refreshProfileList();
+}
+
+function openProfile(name, profile) {
+  currentProfile = profile;
+  currentName = name;
+  document.getElementById("setupSection").classList.add("hidden");
+  document.getElementById("profileSection").classList.add("hidden");
+  document.getElementById("activeProfile").classList.remove("hidden");
+  document.getElementById("activeTitle").textContent = `📋 ${name}`;
+  renderDraw();
+  renderPrizeTracker();
+  renderLeaderboard();
+}
+
+function closeProfile() {
+  document.getElementById("setupSection").classList.remove("hidden");
+  document.getElementById("profileSection").classList.remove("hidden");
+  document.getElementById("activeProfile").classList.add("hidden");
+  currentProfile = null;
+}
+
+function renderDraw() {
+  let html = "";
+  currentProfile.players.forEach(player => {
+    const teams = currentProfile.allocation[player];
+    html += `<div class="player-card"><h3><span>🧑 ${player}</span><span style="font-size:0.85rem;color:#888">${teams.length} teams</span></h3><div class="team-list">`;
+    teams.forEach(t => html += `<span class="team-tag pot-${t.pot}">${t.team}</span>`);
+    html += "</div></div>";
+  });
+  document.getElementById("drawResults").innerHTML = html;
+}
+
+function renderPrizeTracker() {
+  const pot = (currentProfile.buyIn || 0) * currentProfile.players.length;
+  let html = "";
+  if (pot > 0) html += `<p style="margin-bottom:1rem;color:#aaa">Total pot: <strong style="color:#eee">£${pot.toFixed(2)}</strong> (${currentProfile.players.length} × £${currentProfile.buyIn.toFixed(2)})</p>`;
+  prizes.forEach((prize, i) => {
+    const current = currentProfile.prizeWinners[String(i)] || "";
+    const cashLabel = pot > 0 ? ` (£${(pot * prize.pct / 100).toFixed(2)})` : "";
+    html += `<div class="prize-row"><span class="pts">${prize.pct}%${cashLabel}</span><span style="flex:1">${prize.name}</span>`;
+    html += `<select onchange="assignPrize(${i}, this.value)"><option value="">— Not awarded —</option>`;
+    allTeams.forEach(team => { html += `<option value="${team}" ${team === current ? "selected" : ""}>${team}</option>`; });
+    html += `</select></div>`;
+  });
+  document.getElementById("prizeTracker").innerHTML = html;
+}
+
+async function assignPrize(prizeIndex, team) {
+  const data = await api(`/api/profiles/${encodeURIComponent(currentName)}/prizes`, {
+    method: "POST", body: JSON.stringify({ prizeIndex, team })
+  });
+  currentProfile = data;
+  renderLeaderboard();
+}
+
+function renderLeaderboard() {
+  const scores = {};
+  currentProfile.players.forEach(p => scores[p] = 0);
+  const teamOwner = {};
+  currentProfile.players.forEach(p => currentProfile.allocation[p].forEach(t => teamOwner[t.team] = p));
+
+  Object.entries(currentProfile.prizeWinners).forEach(([idx, team]) => {
+    const owner = teamOwner[team];
+    if (owner) scores[owner] += prizes[idx].pct;
+  });
+
+  const pot = (currentProfile.buyIn || 0) * currentProfile.players.length;
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const medals = ["🥇", "🥈", "🥉"];
+  let html = pot > 0
+    ? `<tr><th>#</th><th>Player</th><th>% of Pot</th><th>Winnings</th></tr>`
+    : `<tr><th>#</th><th>Player</th><th>% of Pot</th></tr>`;
+  sorted.forEach(([player, pct], i) => {
+    const medal = pct > 0 && i < 3 ? medals[i] + " " : "";
+    const cash = pot > 0 ? `<td>£${(pot * pct / 100).toFixed(2)}</td>` : "";
+    html += `<tr><td>${i + 1}</td><td>${medal}${player}</td><td>${pct}%</td>${cash}</tr>`;
+  });
+  if (pot > 0) html += `<tr><td></td><td style="color:#888">Total pot</td><td></td><td style="color:#aaa">£${pot.toFixed(2)}</td></tr>`;
+  document.getElementById("leaderboard").innerHTML = html;
+}
+
+init();
+</script>
+</body>
+</html>
