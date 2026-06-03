@@ -12,6 +12,8 @@ from flask import Flask, jsonify, request, send_from_directory
 
 app = Flask(__name__, static_folder="static")
 
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "changeme")
+
 DATA_FILE = Path(__file__).parent / "data" / "profiles.json"
 
 POTS = {
@@ -31,6 +33,14 @@ PRIZES = [
     ("💨 Fastest Goal", "Team that scores the earliest goal (fewest minutes) in any single match of the tournament", 5),
     ("⏱️ Latest Goal", "Team that scores the latest goal within 90 minutes (excluding extra time) in any single match of the tournament", 5),
 ]
+
+
+# --- Auth ---
+def require_admin():
+    pw = request.headers.get("X-Admin-Password", "")
+    if pw != ADMIN_PASSWORD:
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
 
 
 # --- Data persistence ---
@@ -103,6 +113,8 @@ def get_profile(name):
 
 @app.route("/api/profiles/<name>", methods=["DELETE"])
 def delete_profile(name):
+    err = require_admin()
+    if err: return err
     profiles = load_profiles()
     if name not in profiles:
         return jsonify({"error": "Not found"}), 404
@@ -113,6 +125,8 @@ def delete_profile(name):
 
 @app.route("/api/draw", methods=["POST"])
 def draw():
+    err = require_admin()
+    if err: return err
     data = request.json
     name = data.get("name", "").strip()
     players = [p.strip() for p in data.get("players", []) if p.strip()]
