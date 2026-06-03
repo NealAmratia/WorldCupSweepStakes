@@ -6,15 +6,31 @@ import json
 import os
 import random
 from collections import defaultdict
-from pathlib import Path
 
+import requests as http_client
 from flask import Flask, jsonify, request, send_from_directory
 
 app = Flask(__name__, static_folder="static")
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "changeme")
+TURSO_URL = os.environ.get("TURSO_URL", "")
+TURSO_TOKEN = os.environ.get("TURSO_TOKEN", "")
 
-DATA_FILE = Path(__file__).parent / "data" / "profiles.json"
+
+# --- Turso DB ---
+def _turso(statements):
+    url = TURSO_URL.replace("libsql://", "https://") + "/v2/pipeline"
+    headers = {"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"}
+    reqs = [{"type": "execute", "stmt": s} for s in statements] + [{"type": "close"}]
+    r = http_client.post(url, headers=headers, json={"requests": reqs})
+    return r.json()["results"]
+
+
+def init_db():
+    _turso([{"sql": "CREATE TABLE IF NOT EXISTS profiles (name TEXT PRIMARY KEY, data TEXT NOT NULL)"}])
+
+
+init_db()
 
 POTS = {
     "Pot 1 – Top Seeds": ["United States", "Mexico", "Canada", "Spain", "Argentina", "France", "England", "Brazil", "Portugal", "Netherlands", "Belgium", "Germany"],
@@ -45,14 +61,23 @@ def require_admin():
 
 # --- Data persistence ---
 def load_profiles() -> dict:
-    if DATA_FILE.exists():
-        return json.loads(DATA_FILE.read_text())
-    return {}
+    results = _turso([{"sql": "SELECT name, data FROM profiles"}])
+    rows = results[0]["response"]["result"]["rows"]
+    return {row[0]["value"]: json.loads(row[1]["value"]) for row in rows}
 
 
-def save_profiles(profiles: dict):
-    DATA_FILE.parent.mkdir(exist_ok=True)
-    DATA_FILE.write_text(json.dumps(profiles, indent=2))
+def load_profile(name: str):
+    results = _turso([{"sql": "SELECT data FROM profiles WHERE name = ?", "args": [{"type": "text", "value": name}]}])
+    rows = results[0]["response"]["result"]["rows"]
+    return json.loads(rows[0][0]["value"]) if rows else None
+
+
+def save_profile(name: str, profile: dict):
+    _turso([{"sql": "INSERT OR REPLACE INTO profiles (name, data) VALUES (?, ?)", "args": [{"type": "text", "value": name}, {"type": "text", "value": json.dumps(profile)}]}])
+
+
+def delete_profile_db(name: str):
+    _turso([{"sql": "DELETE FROM profiles WHERE name = ?", "args": [{"type": "text", "value": name}]}])
 
 
 # --- Draw logic ---
@@ -105,21 +130,20 @@ def list_profiles():
 
 @app.route("/api/profiles/<name>", methods=["GET"])
 def get_profile(name):
-    profiles = load_profiles()
-    if name not in profiles:
+    profile = load_profile(name)
+    if not profile:
         return jsonify({"error": "Not found"}), 404
-    return jsonify(profiles[name])
+    return jsonify(profile)
 
 
 @app.route("/api/profiles/<name>", methods=["DELETE"])
 def delete_profile(name):
     err = require_admin()
     if err: return err
-    profiles = load_profiles()
-    if name not in profiles:
+    profile = load_profile(name)
+    if not profile:
         return jsonify({"error": "Not found"}), 404
-    del profiles[name]
-    save_profiles(profiles)
+    delete_profile_db(name)
     return jsonify({"ok": True})
 
 
@@ -142,26 +166,24 @@ def draw():
     buy_in = data.get("buyIn", 0)
     profile = {"players": players, "allocation": allocation, "prizeWinners": {}, "buyIn": buy_in, "createdAt": __import__("datetime").datetime.now().isoformat()}
 
-    profiles = load_profiles()
-    profiles[name] = profile
-    save_profiles(profiles)
+    save_profile(name, profile)
     return jsonify(profile)
 
 
 @app.route("/api/profiles/<name>/prizes", methods=["POST"])
 def update_prizes(name):
-    profiles = load_profiles()
-    if name not in profiles:
+    profile = load_profile(name)
+    if not profile:
         return jsonify({"error": "Not found"}), 404
-    data = request.json  # {"prizeIndex": 0, "team": "Argentina"} or {"team": ""} to clear
+    data = request.json
     idx = str(data.get("prizeIndex"))
     team = data.get("team", "").strip()
     if team:
-        profiles[name]["prizeWinners"][idx] = team
+        profile["prizeWinners"][idx] = team
     else:
-        profiles[name]["prizeWinners"].pop(idx, None)
-    save_profiles(profiles)
-    return jsonify(profiles[name])
+        profile["prizeWinners"].pop(idx, None)
+    save_profile(name, profile)
+    return jsonify(profile)
 
 
 if __name__ == "__main__":

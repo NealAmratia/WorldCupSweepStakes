@@ -23,6 +23,65 @@ A fair team draw and prize tracker for office/friend group sweepstakes. Python F
 | 5% | 💨 Fastest Goal | Team that scores the earliest goal (fewest minutes) in any single match |
 | 5% | ⏱️ Latest Goal | Team that scores the latest goal within 90 mins (excluding extra time) in any single match |
 
+## Deployment (Render + Turso)
+
+### 1. Create a Turso Database (free)
+
+1. Sign up at [turso.tech](https://turso.tech)
+2. Create a database (via dashboard or CLI: `turso db create worldcupsweepstakes`)
+3. Get the connection URL: `turso db show worldcupsweepstakes --url`
+4. Create an auth token: `turso db tokens create worldcupsweepstakes`
+
+### 2. Push to GitHub
+
+```bash
+cd worldcup-sweepstakes
+git init && git add -A && git commit -m "Initial commit"
+# Create a repo on github.com, then:
+git remote add origin git@github.com:youruser/worldcup-sweepstakes.git
+git push -u origin main
+```
+
+### 3. Deploy on Render (free)
+
+1. Sign up at [render.com](https://render.com) with GitHub
+2. New → Web Service → connect your repo
+3. Settings:
+   - **Build command:** `pip install -r requirements.txt`
+   - **Start command:** `python app.py`
+4. Add environment variables (Settings → Environment):
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `TURSO_URL` | `libsql://your-db-name.turso.io` | From Turso dashboard |
+| `TURSO_TOKEN` | `eyJhbG...` | Auth token from Turso |
+| `ADMIN_PASSWORD` | (your secret) | Required to create/delete draws |
+| `PORT` | `5050` | Port Render routes traffic to |
+
+5. Deploy — your site will be live at `https://your-app.onrender.com`
+
+### 4. Optional: Custom Domain + Cloudflare
+
+If you have a custom domain and want DDoS protection:
+
+1. Sign up at [cloudflare.com](https://cloudflare.com) (free)
+2. Add your domain and update nameservers to Cloudflare's
+3. Add a CNAME record pointing to your Render URL
+4. Cloudflare provides free HTTPS + rate limiting + DDoS protection
+
+If you don't have a custom domain, skip this — Render already gives you HTTPS on their `.onrender.com` URL.
+
+### Security Model
+
+| Action | Auth required? |
+|--------|---------------|
+| View profiles & leaderboard | No |
+| Assign prize winners | No |
+| Create a draw | Admin password |
+| Delete a profile | Admin password |
+
+The admin password is entered via a browser prompt when needed. It's sent as an `X-Admin-Password` header and checked server-side.
+
 ## Quick Start
 
 ```bash
