@@ -33,10 +33,10 @@ def init_db():
 init_db()
 
 POTS = {
-    "Pot 1 – Top Seeds": ["United States", "Mexico", "Canada", "Spain", "Argentina", "France", "England", "Brazil", "Portugal", "Netherlands", "Belgium", "Germany"],
-    "Pot 2 – Strong": ["Croatia", "Morocco", "Colombia", "Uruguay", "Switzerland", "Japan", "Senegal", "Iran", "South Korea", "Ecuador", "Austria", "Australia"],
-    "Pot 3 – Competitive": ["Norway", "Panama", "Egypt", "Algeria", "Scotland", "Paraguay", "Tunisia", "Ivory Coast", "Uzbekistan", "Qatar", "Saudi Arabia", "South Africa"],
-    "Pot 4 – Underdogs": ["Jordan", "Cape Verde", "Ghana", "Curaçao", "Haiti", "New Zealand", "Bosnia and Herzegovina", "Czech Republic", "Sweden", "Turkey", "DR Congo", "Iraq"],
+    "Pot 1 – Top Seeds": ["France", "Spain", "Argentina", "England", "Portugal", "Brazil", "Netherlands", "Morocco", "Belgium", "Germany", "Croatia", "Colombia"],
+    "Pot 2 – Strong": ["Senegal", "Mexico", "United States", "Uruguay", "Japan", "Switzerland", "Iran", "Austria", "South Korea", "Ecuador", "Australia", "Egypt"],
+    "Pot 3 – Competitive": ["Canada", "Ivory Coast", "Qatar", "Algeria", "Sweden", "Tunisia", "Czech Republic", "Turkey", "Norway", "Scotland", "DR Congo", "Bosnia and Herzegovina"],
+    "Pot 4 – Underdogs": ["Panama", "Saudi Arabia", "South Africa", "Iraq", "Uzbekistan", "Paraguay", "Ghana", "Jordan", "Cape Verde", "Curaçao", "Haiti", "New Zealand"],
 }
 
 PRIZES = [
