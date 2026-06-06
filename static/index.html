@@ -9,7 +9,7 @@
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; padding: 2rem; }
 h1 { text-align: center; font-size: 2rem; margin-bottom: 0.5rem; }
 .subtitle { text-align: center; color: #888; margin-bottom: 2rem; }
-.container { max-width: 900px; margin: 0 auto; }
+.container { max-width: 1200px; margin: 0 auto; }
 section { background: #16213e; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
 label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
 input, select { width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid #333; background: #0f3460; color: #eee; font-size: 1rem; margin-bottom: 1rem; }
@@ -46,6 +46,27 @@ input::placeholder { color: #666; }
 .prize-row:last-child { border-bottom: none; }
 .prize-row select { width: auto; margin-bottom: 0; padding: 0.4rem; font-size: 0.85rem; }
 .hidden { display: none; }
+/* Reveal animation styles */
+.reveal-players-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.reveal-player-box { background: #0f3460; border-radius: 10px; padding: 0.75rem; min-height: 90px; }
+.reveal-player-box h4 { font-size: 0.9rem; margin-bottom: 0.5rem; color: #ddd; border-bottom: 1px solid #333; padding-bottom: 0.4rem; }
+.reveal-player-box .rp-teams { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.reveal-player-box.highlight { box-shadow: 0 0 0 2px #e94560; transition: box-shadow 0.3s; }
+.rp-team-tag { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; animation: popIn 0.4s ease-out; }
+.rp-team-tag.pot-1 { background: #3d2e00; border: 1px solid #ffd700; color: #ffd700; }
+.rp-team-tag.pot-2 { background: #2a2a3a; border: 1px solid #c0c0c0; color: #c0c0c0; }
+.rp-team-tag.pot-3 { background: #2e1f0f; border: 1px solid #cd7f32; color: #cd7f32; }
+.rp-team-tag.pot-4 { background: #0f2e2b; border: 1px solid #4ecdc4; color: #4ecdc4; }
+@keyframes popIn { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+#revealTeamCenter { font-size: 2.2rem; font-weight: 800; opacity: 0; transform: scale(0.7); transition: opacity 0.4s, transform 0.4s; }
+#revealTeamCenter.show { opacity: 1; transform: scale(1); }
+#revealArrow { opacity: 0; transition: opacity 0.3s; font-size: 1.5rem; }
+#revealArrow.show { opacity: 1; }
+#revealPlayerName { opacity: 0; transition: opacity 0.3s; font-size: 1.2rem; color: #e94560; font-weight: 700; }
+#revealPlayerName.show { opacity: 1; }
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+.reveal-center-area { animation: pulse 1.5s infinite; }
+.reveal-center-area.revealed { animation: none; }
 </style>
 </head>
 <body>
@@ -76,6 +97,30 @@ input::placeholder { color: #666; }
     <div class="info">Supports 2–12 players. Fair distribution from 4 seeded pots. Pot = buy-in × number of players.</div>
     <div class="error" id="error"></div>
     <button class="btn" onclick="runDraw()">🎲 Draw & Save</button>
+  </section>
+
+  <!-- Dramatic Allocation Reveal -->
+  <section id="allocationReveal" class="hidden">
+    <h2 id="revealTitle" style="text-align:center;margin-bottom:0.5rem">🎰 The Draw</h2>
+    <p id="revealSubtitle" style="text-align:center;color:#888;margin-bottom:1.5rem">Allocating teams…</p>
+
+    <!-- Player boxes at the top -->
+    <div id="revealPlayersGrid" class="reveal-players-grid"></div>
+
+    <!-- Current pot label -->
+    <div id="revealPotLabel" style="text-align:center;font-size:1.1rem;font-weight:700;margin:1rem 0 0.5rem;color:#ffd700"></div>
+
+    <!-- Center reveal area -->
+    <div class="reveal-center-area" id="revealCenterArea" style="min-height:100px;display:flex;align-items:center;justify-content:center;gap:1rem;flex-direction:column">
+      <div id="revealTeamCenter">❓</div>
+      <div id="revealArrow">⬇️</div>
+      <div id="revealPlayerName"></div>
+    </div>
+
+    <div style="text-align:center;margin-top:1.5rem">
+      <button class="btn" id="revealNextBtn" onclick="revealNext()">Next →</button>
+      <button class="btn btn-secondary" id="revealSkipBtn" onclick="revealSkipAll()" style="margin-left:0.5rem">Skip All ⏭️</button>
+    </div>
   </section>
 
   <!-- Active Profile -->
@@ -126,6 +171,7 @@ async function adminApi(path, opts = {}) {
 async function init() {
   const [pots, prizesData] = await Promise.all([api("/api/pots"), api("/api/prizes")]);
   prizes = prizesData;
+  POTS_DATA = pots;
   allTeams = Object.values(pots).flat();
 
   // Render pots
@@ -166,7 +212,189 @@ async function runDraw() {
   if (data.error) { errEl.textContent = data.error; return; }
 
   await refreshProfileList();
-  openProfile(name, data);
+  startReveal(name, data);
+}
+
+// --- Dramatic Reveal ---
+let revealQueue = [];
+let revealIndex = 0;
+let revealProfileName = "";
+let revealProfileData = null;
+
+function buildRevealQueue(profile) {
+  const queue = [];
+  const potNames = Object.keys(POTS_DATA);
+  // Reverse order: Pot 4 (underdogs) → Pot 1 (top seeds) for dramatic build-up
+  for (let potIdx = potNames.length - 1; potIdx >= 0; potIdx--) {
+    const potName = potNames[potIdx];
+    const potItems = [];
+    profile.players.forEach(player => {
+      const teams = profile.allocation[player].filter(t => t.pot === potIdx + 1);
+      teams.forEach(t => potItems.push({ player, team: t.team, pot: potIdx + 1, potName }));
+    });
+    // Shuffle within pot for extra drama
+    for (let i = potItems.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [potItems[i], potItems[j]] = [potItems[j], potItems[i]];
+    }
+    queue.push(...potItems);
+  }
+  return queue;
+}
+
+let POTS_DATA = {};
+
+function startReveal(name, profile) {
+  revealProfileName = name;
+  revealProfileData = profile;
+  revealQueue = buildRevealQueue(profile);
+  revealIndex = 0;
+
+  // Hide other sections, show reveal
+  document.getElementById("setupSection").classList.add("hidden");
+  document.getElementById("profileSection").classList.add("hidden");
+  document.getElementById("activeProfile").classList.add("hidden");
+  document.getElementById("allocationReveal").classList.remove("hidden");
+
+  document.getElementById("revealTitle").textContent = `🎰 ${name}`;
+  document.getElementById("revealSubtitle").textContent = `${profile.players.length} players · ${revealQueue.length} teams to allocate`;
+
+  // Build player grid
+  const grid = document.getElementById("revealPlayersGrid");
+  grid.innerHTML = "";
+  profile.players.forEach(player => {
+    const box = document.createElement("div");
+    box.className = "reveal-player-box";
+    box.id = `rp-box-${player.replace(/\s+/g, "-")}`;
+    box.innerHTML = `<h4>🧑 ${player}</h4><div class="rp-teams" id="rp-teams-${player.replace(/\s+/g, "-")}"></div>`;
+    grid.appendChild(box);
+  });
+
+  document.getElementById("revealNextBtn").classList.remove("hidden");
+  document.getElementById("revealSkipBtn").classList.remove("hidden");
+  document.getElementById("revealNextBtn").textContent = "Reveal First Team →";
+
+  resetCenterArea();
+  showCurrentPotLabel();
+}
+
+function resetCenterArea() {
+  const teamEl = document.getElementById("revealTeamCenter");
+  const arrowEl = document.getElementById("revealArrow");
+  const playerEl = document.getElementById("revealPlayerName");
+  teamEl.classList.remove("show");
+  arrowEl.classList.remove("show");
+  playerEl.classList.remove("show");
+  teamEl.textContent = "❓";
+  arrowEl.textContent = "⬇️";
+  playerEl.textContent = "";
+  document.getElementById("revealCenterArea").classList.remove("revealed");
+}
+
+function showCurrentPotLabel() {
+  if (revealIndex < revealQueue.length) {
+    document.getElementById("revealPotLabel").textContent = revealQueue[revealIndex].potName;
+  }
+}
+
+function revealNext() {
+  if (revealIndex >= revealQueue.length) {
+    finishReveal();
+    return;
+  }
+
+  const item = revealQueue[revealIndex];
+  const teamEl = document.getElementById("revealTeamCenter");
+  const arrowEl = document.getElementById("revealArrow");
+  const playerEl = document.getElementById("revealPlayerName");
+  const centerArea = document.getElementById("revealCenterArea");
+
+  // Update pot label
+  document.getElementById("revealPotLabel").textContent = item.potName;
+
+  // Step 1: Show team name
+  centerArea.classList.add("revealed");
+  teamEl.textContent = item.team;
+  teamEl.classList.add("show");
+
+  // Step 2: Show arrow + player name
+  setTimeout(() => {
+    arrowEl.classList.add("show");
+    playerEl.textContent = item.player;
+    playerEl.classList.add("show");
+  }, 500);
+
+  // Step 3: Move team card into player's box + highlight
+  setTimeout(() => {
+    const playerId = item.player.replace(/\s+/g, "-");
+    const teamsContainer = document.getElementById(`rp-teams-${playerId}`);
+    const box = document.getElementById(`rp-box-${playerId}`);
+    if (teamsContainer) {
+      const tag = document.createElement("span");
+      tag.className = `rp-team-tag pot-${item.pot}`;
+      tag.textContent = item.team;
+      teamsContainer.appendChild(tag);
+    }
+    // Highlight player box briefly
+    if (box) {
+      box.classList.add("highlight");
+      setTimeout(() => box.classList.remove("highlight"), 1000);
+    }
+  }, 1000);
+
+  revealIndex++;
+
+  // Update button text
+  if (revealIndex >= revealQueue.length) {
+    document.getElementById("revealNextBtn").textContent = "View Results 🎉";
+  } else {
+    document.getElementById("revealNextBtn").textContent = `Next (${revealIndex}/${revealQueue.length}) →`;
+  }
+
+  // Reset center for next reveal
+  setTimeout(() => {
+    if (revealIndex < revealQueue.length) {
+      resetCenterArea();
+      showCurrentPotLabel();
+    }
+  }, 1800);
+}
+
+function revealSkipAll() {
+  // Dump all remaining into player boxes immediately
+  while (revealIndex < revealQueue.length) {
+    const item = revealQueue[revealIndex];
+    const playerId = item.player.replace(/\s+/g, "-");
+    const teamsContainer = document.getElementById(`rp-teams-${playerId}`);
+    if (teamsContainer) {
+      const tag = document.createElement("span");
+      tag.className = `rp-team-tag pot-${item.pot}`;
+      tag.textContent = item.team;
+      teamsContainer.appendChild(tag);
+    }
+    revealIndex++;
+  }
+  finishReveal();
+}
+
+function finishReveal() {
+  document.getElementById("revealPotLabel").textContent = "✅ All teams allocated!";
+  const teamEl = document.getElementById("revealTeamCenter");
+  const playerEl = document.getElementById("revealPlayerName");
+  const arrowEl = document.getElementById("revealArrow");
+  teamEl.textContent = "🎉";
+  teamEl.classList.add("show");
+  arrowEl.classList.add("show");
+  arrowEl.textContent = "";
+  playerEl.textContent = "Draw complete!";
+  playerEl.classList.add("show");
+  document.getElementById("revealCenterArea").classList.add("revealed");
+  document.getElementById("revealNextBtn").textContent = "View Results →";
+  document.getElementById("revealNextBtn").onclick = () => {
+    document.getElementById("allocationReveal").classList.add("hidden");
+    openProfile(revealProfileName, revealProfileData);
+  };
+  document.getElementById("revealSkipBtn").classList.add("hidden");
 }
 
 async function loadProfile() {
